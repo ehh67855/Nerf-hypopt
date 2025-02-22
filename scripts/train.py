@@ -38,6 +38,7 @@ def train_nerf(netdepth, netwidth, lrate, N_rand, config_path):
 
         # Extract output
         output_lines = process.stdout.split("\n")
+        psnr, memory_usage = 0, float("inf")
         metrics = None
 
         for line in output_lines:
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     # Example usage
     CONFIG_FILE = os.path.join(os.path.dirname(__file__), "../nerf-pytorch/configs/lego.txt")
 
+    #parameters: 10 hidden layers, 512 neurons per layer, 0.001 learn rate, 512 random rays per batch, config path
     psnr, train_time, memory = train_nerf(10, 512, 0.001, 512, CONFIG_FILE)
 
     print(f"Training Results: PSNR={psnr}, Time={train_time:.2f}s, Memory={memory}GB")
