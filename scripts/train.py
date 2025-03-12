@@ -9,66 +9,118 @@ import torch
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 NERF_SCRIPT = os.path.abspath(os.path.join(REPO_ROOT, "nerf-pytorch", "run_nerf.py"))
 
-def train_nerf(hyperparams):
+def train_nerf(hyperparams, config_path):
     """
     Trains NeRF with given hyperparameters and returns metrics.
     
     Args:
-        hyperparams (list): [netdepth, netwidth, lrate, N_rand]
+        hyperparams (dict): Dictionary of hyperparameters
+        config_path (str): Path to base config file
     
     Returns:
-        tuple: (PSNR score, training time in seconds, peak memory usage in MB)
+        dict: Dictionary containing PSNR, training time, and peak memory usage
     """
-    netdepth, netwidth, lrate, N_rand = hyperparams
+    # Convert config_path to absolute path if it isn't already
+    config_path = os.path.abspath(config_path)
     
-    # Convert hyperparameters to appropriate types
-    netdepth = int(netdepth)
-    netwidth = int(netwidth)
-    N_rand = int(N_rand)
-    
-    # Verify script exists
-    if not os.path.exists(NERF_SCRIPT):
-        raise FileNotFoundError(f"NeRF script not found at: {NERF_SCRIPT}")
-    
-    cmd = [
-        "python",
-        NERF_SCRIPT,
-        "--datadir", "./data/nerf_synthetic/lego",  
-        "--dataset_type", "blender",                
-        "--netdepth", str(netdepth),
-        "--netwidth", str(netwidth),
-        "--lrate", str(lrate),
-        "--N_rand", str(N_rand),
-        "--no_reload"                             
+    # Add these debug prints at the start of the function
+    print(f"NERF_SCRIPT path: {NERF_SCRIPT}")
+    print(f"Config path: {config_path}")
+    print(f"Checking if paths exist:")
+    print(f"NERF_SCRIPT exists: {os.path.exists(NERF_SCRIPT)}")
+    print(f"Config exists: {os.path.exists(config_path)}")
+
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    # Construct training command
+    train_cmd = [
+        "python", NERF_SCRIPT,
+        "--config", config_path,
+        "--netdepth", str(hyperparams.get('netdepth', 8)),
+        "--netwidth", str(hyperparams.get('netwidth', 256)),
+        "--lrate", str(hyperparams.get('lrate', 5e-4)),
+        "--N_rand", str(hyperparams.get('N_rand', 1024))
     ]
-    
+
     start_time = time.time()
-    process = psutil.Process(os.getpid())
-    initial_memory = process.memory_info().rss / 1024 / 1024  # Convert to MB
-    
+    current_process = psutil.Process(os.getpid())  # Rename this variable
+    peak_memory = 0
+
     try:
-        # Run NeRF training
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # Change to the NeRF directory before running
+        original_dir = os.getcwd()
+        nerf_dir = os.path.dirname(NERF_SCRIPT)
+        os.chdir(nerf_dir)
         
-        # Extract PSNR from output (modify based on actual output format)
-        for line in result.stdout.split('\n'):
-            if 'PSNR' in line:
-                psnr = float(line.split(':')[1].strip())
+        # Store initial memory usage
+        initial_memory = current_process.memory_info().rss / 1024 / 1024  # MB
+        
+        print("\nStarting NeRF training with following command:")
+        print(" ".join(train_cmd))
+        print("\nTraining output:")
+        
+        # Use Popen to get real-time output while also capturing it
+        process = subprocess.Popen(
+            train_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Initialize variables to store output
+        output_lines = []
+        
+        # Read output in real-time
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
                 break
-        else:
-            psnr = 0.0  # Default if PSNR not found
+            if output:
+                print(output.strip())
+                output_lines.append(output.strip())
         
-        # Calculate metrics
-        train_time = time.time() - start_time
-        final_memory = process.memory_info().rss / 1024 / 1024
-        memory_usage = final_memory - initial_memory
+        # Get the return code
+        return_code = process.poll()
         
-        return psnr, train_time, memory_usage
+        # Track final memory usage
+        final_memory = current_process.memory_info().rss / 1024 / 1024  # MB
+        peak_memory = max(initial_memory, final_memory)
         
+        # Change back to original directory
+        os.chdir(original_dir)
+        
+        if return_code != 0:
+            raise subprocess.CalledProcessError(return_code, train_cmd)
+        
+        # Parse output for metrics
+        final_psnr = 0
+        for line in output_lines:
+            if "PSNR" in line:
+                try:
+                    metrics = json.loads(line)
+                    final_psnr = metrics.get("PSNR", 0)
+                except json.JSONDecodeError:
+                    continue
+
     except subprocess.CalledProcessError as e:
-        print(f"Error running NeRF training: {e}")
-        print(f"stderr: {e.stderr}")
-        return 0.0, 999999, 999999  # Return poor fitness values on error
+        print(f"Error during training: {e}")
+        print(e.output)
+        return {
+            "psnr": 0,
+            "training_time": float("inf"),
+            "peak_memory_mb": float("inf")
+        }
+
+    training_time = time.time() - start_time
+
+    return {
+        "psnr": final_psnr,
+        "training_time": training_time,
+        "peak_memory_mb": peak_memory
+    }
 
 if __name__ == "__main__":
     # Example usage
@@ -82,9 +134,8 @@ if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(__file__), 
                               "../nerf-pytorch/configs/lego.txt")
     
-    results = train_nerf(hyperparams)
+    results = train_nerf(hyperparams, config_path)
     print(f"Training Results:")
-    print(f"PSNR: {results[0]:.2f}")
-    print(f"Training Time: {results[1]:.2f} seconds")
-    print(f"Peak Memory Usage: {results[2]:.2f} MB")
-
+    print(f"PSNR: {results['psnr']:.2f}")
+    print(f"Training Time: {results['training_time']:.2f} seconds")
+    print(f"Peak Memory Usage: {results['peak_memory_mb']:.2f} MB")
