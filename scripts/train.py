@@ -79,7 +79,7 @@ def train_nerf(hyperparams, config_path):
             if output == '' and process.poll() is not None:
                 break
             if output:
-                print(output.strip())
+                #print(output.strip())
                 output_lines.append(output.strip())
         
         # Get the return code
