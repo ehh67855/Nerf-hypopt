@@ -239,7 +239,7 @@ def create_nerf(args):
                  for f in sorted(os.listdir(os.path.join(basedir, expname)))
                  if 'tar' in f]
 
-    print('Found ckpts', ckpts)
+    # print('Found ckpts', ckpts)
     # 'Found ckpts' line does not contain relevant keywords
     if len(ckpts) > 0 and not args.no_reload:
         ckpt_path = ckpts[-1]
@@ -271,7 +271,7 @@ def create_nerf(args):
 
     # NDC only good for LLFF-style forward facing data
     if args.dataset_type != 'llff' or args.no_ndc:
-        print('Not ndc!')
+        # print('Not ndc!')
         
         render_kwargs_train['ndc'] = False
         render_kwargs_train['lindisp'] = args.lindisp
@@ -579,7 +579,7 @@ def train(hyperparams, config_file="configs/lego.txt"):
         hwf = poses[0, :3, -1]
         poses = poses[:, :3, :4]
         load_line = f"Loaded llff {images.shape} {render_poses.shape} {hwf} {args.datadir}"
-        print(load_line)
+        # print(load_line)
         
         if not isinstance(i_test, list):
             i_test = [i_test]
@@ -594,7 +594,7 @@ def train(hyperparams, config_file="configs/lego.txt"):
             [i for i in np.arange(int(images.shape[0])) if
              (i not in i_test and i not in i_val)])
 
-        print('DEFINING BOUNDS')
+        # print('DEFINING BOUNDS')
         
         if args.no_ndc:
             near = np.ndarray.min(bds) * .9
@@ -603,14 +603,14 @@ def train(hyperparams, config_file="configs/lego.txt"):
             near = 0.
             far = 1.
         nf_line = f"NEAR FAR {near} {far}"
-        print(nf_line)
+        # print(nf_line)
         
 
     elif args.dataset_type == 'blender':
         images, poses, render_poses, hwf, i_split = load_blender_data(
             args.datadir, args.half_res, args.testskip)
         load_line = f"Loaded blender {images.shape} {render_poses.shape} {hwf} {args.datadir}"
-        print(load_line)
+        # print(load_line)
         i_train, i_val, i_test = i_split
 
         near = 2.
@@ -627,9 +627,9 @@ def train(hyperparams, config_file="configs/lego.txt"):
             load_LINEMOD_data(
                 args.datadir, args.half_res, args.testskip)
         load_line = f'Loaded LINEMOD, images shape: {images.shape}, hwf: {hwf}, K: {K}'
-        print(load_line)
+        # print(load_line)
         check_line = f'[CHECK HERE] near: {near}, far: {far}.'
-        print(check_line)
+        # print(check_line)
         i_train, i_val, i_test = i_split
 
         if args.white_bkgd:
@@ -646,7 +646,7 @@ def train(hyperparams, config_file="configs/lego.txt"):
 
         load_line = f'Loaded deepvoxels {images.shape} {render_poses.shape} {hwf} {args.datadir}'
         print(load_line)
-        i_train, i_val, i_test = i_split
+        # i_train, i_val, i_test = i_split
 
         hemi_R = np.mean(
             np.linalg.norm(poses[:, :3, -1], axis=-1))
@@ -767,18 +767,18 @@ def train(hyperparams, config_file="configs/lego.txt"):
     if use_batching:
         rays_rgb = torch.Tensor(rays_rgb).to(device)
 
-    N_iters = 200
+    N_iters = 30
     begin_line = 'Begin'
-    print(begin_line)
+    # print(begin_line)
     
     tr_line = f"TRAIN views are {i_train}"
-    print(tr_line)
+    #print(tr_line)
     
     te_line = f"TEST views are {i_test}"
-    print(te_line)
+    #print(te_line)
     
     va_line = f"VAL views are {i_val}"
-    print(va_line)
+    #print(va_line)
     
 
     start = start + 1
@@ -828,7 +828,7 @@ def train(hyperparams, config_file="configs/lego.txt"):
                     coords = coords.long()
                     if i == start:
                         ccs_line = f"[Config] Center cropping of size {2 * dH} x {2 * dW} is enabled until iter {args.precrop_iters}"
-                        print(ccs_line)
+                        # print(ccs_line)
                         log_if_relevant(ccs_line)
                 else:
                     coords = torch.stack(
@@ -954,6 +954,7 @@ def evaluate_hyperparameters(hyperparams):
     Evaluates NeRF training performance for a given set of hyperparameters.
     """
     
+    
     # Clear any existing cached memory
     torch.cuda.empty_cache()
     gc.collect()
@@ -966,6 +967,9 @@ def evaluate_hyperparameters(hyperparams):
     start_time = time.time()
     
     try:
+
+        print(f"[EVAL] Starting evaluation with hyperparameters: {hyperparams}")
+
         # Run the training
         (final_psnr, ssim, total_time, model_size,
          mean_psnr, psnr_increases, psnr_auc,
@@ -995,7 +999,8 @@ def evaluate_hyperparameters(hyperparams):
             'ssim': ssim,
             'model_size': model_size
         }
-        
+        print(f"[EVAL] Evaluation completed:")
+        # Print final results
         print(f"[EVAL] Training completed successfully:")
         print(f"[EVAL] Final PSNR: {final_psnr:.2f}")
         print(f"[EVAL] Training time: {total_time:.2f} seconds")

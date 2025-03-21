@@ -1,217 +1,245 @@
-import numpy as np
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel
-from sklearn.preprocessing import StandardScaler
-from deap import base, creator, tools, algorithms
+import array
 import random
-from run_nerf import evaluate_hyperparameters
-import torch
-import psutil
+import numpy as np
+import json
+import os
+import time as pytime
+from deap import base, creator, tools, algorithms
+from SurrogateModel import SurrogateModel 
+from run_nerf import evaluate_hyperparameters 
+from sklearn.exceptions import NotFittedError
 
-# Create fitness class for multi-objective optimization
-creator.create("FitnessMulti", base.Fitness, weights=(1.0, -1.0, -1.0, -1.0))  # PSNR, Time, CPU, Memory
-creator.create("Individual", list, fitness=creator.FitnessMulti)
+# ========== Config ==========
+NDIM = 5  # number of hyperparameters
+# Define the bounds for each hyperparameter
+BOUND_LOW = np.array([1e-4, 1, 16, 32, 100])  # learning_rate, layers, neurons, batch_size, decay_steps
+BOUND_UP = np.array([1e-2, 12, 512, 2048, 1000])
 
-class SurrogateModel:
-    def __init__(self):
-        # Initialize separate GP models for each objective
-        self.gp_psnr = GaussianProcessRegressor(
-            kernel=ConstantKernel() * RBF(),
-            n_restarts_optimizer=10,
-            random_state=42
-        )
-        self.gp_time = GaussianProcessRegressor(
-            kernel=ConstantKernel() * RBF(),
-            n_restarts_optimizer=10,
-            random_state=42
-        )
-        self.gp_memory = GaussianProcessRegressor(
-            kernel=ConstantKernel() * RBF(),
-            n_restarts_optimizer=10,
-            random_state=42
-        )
-        
-        self.scaler_X = StandardScaler()
-        self.scaler_y = {
-            'psnr': StandardScaler(),
-            'time': StandardScaler(),
-            'memory': StandardScaler()
-        }
-        
-        self.X_train = None
-        self.y_train = {
-            'psnr': [],
-            'time': [],
-            'memory': []
-        }
+# Define parameter names and types for consistent conversion
+PARAM_SPECS = [
+    ('learning_rate', float),
+    ('num_hidden_layers', int),
+    ('neurons_per_layer', int),
+    ('batch_size', int),
+    ('learning_decay_steps', int)
+]
 
-    def fit(self, X, y_dict):
-        """Fit the surrogate models"""
-        self.X_train = self.scaler_X.fit_transform(X)
-        
-        for metric, values in y_dict.items():
-            scaled_y = self.scaler_y[metric].fit_transform(np.array(values).reshape(-1, 1))
-            self.y_train[metric] = scaled_y.ravel()
-            
-        self.gp_psnr.fit(self.X_train, self.y_train['psnr'])
-        self.gp_time.fit(self.X_train, self.y_train['time'])
-        self.gp_memory.fit(self.X_train, self.y_train['memory'])
-
-    def predict(self, X):
-        """Predict objectives using the surrogate models"""
-        X_scaled = self.scaler_X.transform(X)
-        
-        psnr_pred = self.gp_psnr.predict(X_scaled)
-        time_pred = self.gp_time.predict(X_scaled)
-        memory_pred = self.gp_memory.predict(X_scaled)
-        
-        # Unscale predictions
-        psnr_pred = self.scaler_y['psnr'].inverse_transform(psnr_pred.reshape(-1, 1)).ravel()
-        time_pred = self.scaler_y['time'].inverse_transform(time_pred.reshape(-1, 1)).ravel()
-        memory_pred = self.scaler_y['memory'].inverse_transform(memory_pred.reshape(-1, 1)).ravel()
-        
-        return psnr_pred, time_pred, memory_pred
-
-def evaluate_individual_real(individual):
-    """Evaluate individual using actual NeRF training"""
-    hyperparams = {
-        'learning_rate': individual[0],
-        'num_hidden_layers': int(round(individual[1])),
-        'neurons_per_layer': int(round(individual[2])),
-        'batch_size': int(round(individual[3])),
-        'learning_decay_steps': int(round(individual[4]))
+def array_to_dict(arr):
+    """Convert numpy array to dictionary with proper types"""
+    return {
+        name: dtype(val) 
+        for (name, dtype), val in zip(PARAM_SPECS, arr)
     }
-    
-    psnr, train_time, memory, _ = evaluate_hyperparameters(hyperparams)
-    cpu_usage = psutil.cpu_percent()
-    
-    return psnr, train_time, cpu_usage, memory
 
-def evaluate_individual_surrogate(individual, surrogate):
-    """Evaluate individual using surrogate model"""
-    X = np.array(individual).reshape(1, -1)
-    psnr_pred, time_pred, memory_pred = surrogate.predict(X)
-    cpu_pred = time_pred * 0.5  # Rough estimation of CPU usage
-    
-    return psnr_pred[0], time_pred[0], cpu_pred, memory_pred[0]
+def dict_to_array(d):
+    """Convert dictionary to numpy array in consistent order"""
+    return np.array([d[name] for name, _ in PARAM_SPECS])
 
-def initialize_population():
-    """Initialize population with bounded random values"""
-    ind = creator.Individual([
-        random.uniform(1e-5, 1e-2),  # learning_rate
-        random.uniform(1, 10),       # num_hidden_layers
-        random.uniform(32, 512),     # neurons_per_layer
-        random.uniform(16, 1024),    # batch_size
-        random.uniform(100, 1000)    # learning_decay_steps
-    ])
-    return ind
+# ========== DEAP Setup ==========
+creator.create("FitnessMax", base.Fitness, weights=(1.0, -1.0, -1.0))  # Maximize PSNR, minimize time/mem
+creator.create("Individual", array.array, typecode='d', fitness=creator.FitnessMax)
 
-def main():
-    # Initialize DEAP toolbox
-    toolbox = base.Toolbox()
-    toolbox.register("individual", initialize_population)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-    
-    # Parameters
-    NGEN = 50
-    POPSIZE = 20
-    INITIAL_REAL_EVALS = 10
-    REAL_EVALS_PER_GEN = 2
-    
-    # Initialize surrogate model
-    surrogate = SurrogateModel()
-    
-    # Initial population with real evaluations
-    population = toolbox.population(n=INITIAL_REAL_EVALS)
-    X_initial = []
-    y_psnr = []
-    y_time = []
-    y_memory = []
-    
-    print("Performing initial real evaluations...")
-    for ind in population:
-        psnr, time, cpu, memory = evaluate_individual_real(ind)
-        X_initial.append(ind)
-        y_psnr.append(psnr)
-        y_time.append(time)
-        y_memory.append(memory)
-        ind.fitness.values = (psnr, time, cpu, memory)
-    
-    # Fit surrogate model
-    surrogate.fit(
-        np.array(X_initial),
-        {'psnr': y_psnr, 'time': y_time, 'memory': y_memory}
-    )
-    
-    # Evolution loop
-    for gen in range(NGEN):
-        print(f"\nGeneration {gen}")
-        
-        # Generate offspring using surrogate model
-        offspring = algorithms.varOr(
-            population, toolbox, lambda_=POPSIZE, 
-            cxpb=0.7, mutpb=0.2
-        )
-        
-        # Evaluate offspring using surrogate
-        for ind in offspring:
-            if not ind.fitness.valid:
-                surrogate_fitness = evaluate_individual_surrogate(ind, surrogate)
-                ind.fitness.values = surrogate_fitness
-        
-        # Select best individuals for real evaluation
-        combined_pop = population + offspring
-        fronts = tools.sortNondominated(combined_pop, len(combined_pop))
-        to_evaluate = []
-        
-        for front in fronts:
-            if len(to_evaluate) + len(front) <= REAL_EVALS_PER_GEN:
-                to_evaluate.extend(front)
-            else:
-                break
-        
-        # Perform real evaluations and update surrogate
-        X_new = []
-        y_psnr_new = []
-        y_time_new = []
-        y_memory_new = []
-        
-        for ind in to_evaluate:
-            psnr, time, cpu, memory = evaluate_individual_real(ind)
-            X_new.append(ind)
-            y_psnr_new.append(psnr)
-            y_time_new.append(time)
-            y_memory_new.append(memory)
-            ind.fitness.values = (psnr, time, cpu, memory)
-        
-        # Update surrogate model
-        if X_new:
-            X_initial.extend(X_new)
-            y_psnr.extend(y_psnr_new)
-            y_time.extend(y_time_new)
-            y_memory.extend(y_memory_new)
+toolbox = base.Toolbox()
+
+def create_bounded_float():
+    return [random.uniform(low, up) for low, up in zip(BOUND_LOW, BOUND_UP)]
+
+toolbox.register("individual", tools.initIterate, creator.Individual, create_bounded_float)
+toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+# Define custom mutation and crossover operators that work with arrays
+def custom_mate(ind1, ind2):
+    """Custom mate function that properly handles boundary constraints"""
+    for i in range(len(ind1)):
+        # Apply simulated binary crossover to each parameter individually
+        if random.random() < 0.5:
+            # Implement simulated binary crossover manually for a single parameter
+            eta = 20.0
+            x1, x2 = ind1[i], ind2[i]
+            xl, xu = BOUND_LOW[i], BOUND_UP[i]
             
-            surrogate.fit(
-                np.array(X_initial),
-                {'psnr': y_psnr, 'time': y_time, 'memory': y_memory}
-            )
-        
-        # Select next generation
-        population = tools.selNSGA2(combined_pop, POPSIZE)
-        
-        # Print current best solutions
-        fronts = tools.sortNondominated(population, len(population))
-        print("\nPareto front:")
-        for ind in fronts[0]:
-            print(f"PSNR: {ind.fitness.values[0]:.2f}, "
-                  f"Time: {ind.fitness.values[1]:.2f}, "
-                  f"CPU: {ind.fitness.values[2]:.2f}, "
-                  f"Memory: {ind.fitness.values[3]:.2f}")
-            print(f"Hyperparameters: lr={ind[0]:.6f}, "
-                  f"layers={int(round(ind[1]))}, "
-                  f"neurons={int(round(ind[2]))}, "
-                  f"batch={int(round(ind[3]))}, "
-                  f"decay={int(round(ind[4]))}")
+            # Check if the values are the same (avoid division by zero)
+            if abs(x1 - x2) > 1e-10:
+                if x1 > x2:
+                    x1, x2 = x2, x1
+                
+                # Calculate beta
+                rand = random.random()
+                beta = 1.0 + (2.0 * (x1 - xl) / (x2 - x1))
+                alpha = 2.0 - beta ** (-(eta + 1.0))
+                
+                if rand <= 1.0 / alpha:
+                    beta_q = (rand * alpha) ** (1.0 / (eta + 1.0))
+                else:
+                    beta_q = (1.0 / (2.0 - rand * alpha)) ** (1.0 / (eta + 1.0))
+                
+                # Calculate child values
+                c1 = 0.5 * ((x1 + x2) - beta_q * (x2 - x1))
+                c2 = 0.5 * ((x1 + x2) + beta_q * (x2 - x1))
+                
+                # Ensure they are within bounds
+                c1 = max(xl, min(xu, c1))
+                c2 = max(xl, min(xu, c2))
+                
+                ind1[i], ind2[i] = c1, c2
+            
+    return ind1, ind2
+
+def custom_mutate(individual, indpb=0.2):
+    """Custom mutation that properly handles boundary constraints"""
+    for i in range(len(individual)):
+        if random.random() < indpb:
+            # Apply polynomial mutation to each parameter individually
+            eta = 20.0
+            x = individual[i]
+            xl = BOUND_LOW[i]
+            xu = BOUND_UP[i]
+            
+            delta_1 = (x - xl) / (xu - xl)
+            delta_2 = (xu - x) / (xu - xl)
+            
+            # This polynomial mutation is based on the original DEAP implementation
+            # but adapted to work with individual values instead of arrays
+            rand = random.random()
+            mut_pow = 1.0 / (eta + 1.)
+            
+            if rand < 0.5:
+                xy = 1.0 - delta_1
+                if xy > 0:  # Avoid issues with negative values
+                    val = 2.0 * rand + (1.0 - 2.0 * rand) * (xy ** (eta + 1.0))
+                    delta_q = val ** mut_pow - 1.0
+                else:
+                    delta_q = 0.0
+                individual[i] = x + delta_q * (xu - xl)
+            else:
+                xy = 1.0 - delta_2
+                if xy > 0:  # Avoid issues with negative values
+                    val = 2.0 * (1.0 - rand) + 2.0 * (rand - 0.5) * (xy ** (eta + 1.0))
+                    delta_q = 1.0 - (val ** mut_pow)
+                else:
+                    delta_q = 0.0
+                individual[i] = x + delta_q * (xu - xl)
+            
+            # Ensure the result is within bounds
+            individual[i] = max(xl, min(xu, individual[i]))
+    
+    return individual,
+
+# Register custom operators
+toolbox.register("mate", custom_mate)
+toolbox.register("mutate", custom_mutate, indpb=1.0/NDIM)
+toolbox.register("select", tools.selNSGA2)
+
+# ========== Logging ==========
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+
+def log_generation(gen, pop, is_real_eval):
+    results = [
+        {
+            "gen": gen,
+            "params": array_to_dict(ind),  # Convert to dictionary for logging
+            "fitness": list(ind.fitness.values),
+            "real_eval": is_real_eval[i]
+        }
+        for i, ind in enumerate(pop)
+    ]
+    with open(os.path.join(log_dir, f"gen_{gen}.json"), "w") as f:
+        json.dump(results, f, indent=2)
+
+def evaluate_individual(individual):
+    """Evaluate an individual using the proper parameter format"""
+    params_dict = array_to_dict(individual)
+    psnr, time_taken, mem, _ = evaluate_hyperparameters(params_dict)
+    return psnr, time_taken, mem
+
+def main(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+
+    MU = 10  # population size
+    NGEN = 40
+    EVAL_EVERY = 5
+    CXPB = 0.9
+
+    surrogate = SurrogateModel()
+    X_train = []
+    y_train = {"psnr": [], "time": [], "memory": []}
+
+    # Initialize population
+    pop = toolbox.population(n=MU)
+    logbook = tools.Logbook()
+    logbook.header = ["gen", "evals", "min", "max"]
+
+    # Evaluate initial population
+    # ========== Initial Evaluation ==========
+    for ind in pop:
+        psnr, time_taken, mem = evaluate_individual(ind)
+        ind.fitness.values = (psnr, time_taken, mem)
+        X_train.append(list(ind))
+        y_train["psnr"].append(psnr)
+        y_train["time"].append(time_taken)
+        y_train["memory"].append(mem)
+
+    surrogate.fit(np.array(X_train), y_train)
+
+    # NSGA-II selection to assign rank and crowding distance
+    pop = toolbox.select(pop, len(pop))
+
+    log_generation(0, pop, [True] * len(pop))
+
+    for gen in range(1, NGEN + 1):
+        offspring = []
+        while len(offspring) < len(pop):
+            parents = tools.selTournamentDCD(pop, 2)
+            children = [toolbox.clone(ind) for ind in parents]
+
+            if random.random() <= CXPB:
+                toolbox.mate(children[0], children[1])
+            for child in children:
+                toolbox.mutate(child)
+                del child.fitness.values
+            offspring.extend(children)
+
+        offspring = offspring[:len(pop)]  # Truncate to population size
+
+        real_eval_indices = [i for i in range(len(offspring)) 
+                            if gen % EVAL_EVERY == 0 or random.random() < 0.2]
+
+        for i, ind in enumerate(offspring):
+            if i in real_eval_indices:
+                psnr, time_taken, mem = evaluate_individual(ind)
+                ind.fitness.values = (psnr, time_taken, mem)
+                X_train.append(list(ind))
+                y_train["psnr"].append(psnr)
+                y_train["time"].append(time_taken)
+                y_train["memory"].append(mem)
+            else:
+                try:
+                    pred = surrogate.predict(np.array([ind]))
+                    ind.fitness.values = (pred[0][0], pred[1][0], pred[2][0])
+                except NotFittedError:
+                    ind.fitness.values = (0.0, 999.0, 999.0)
+
+        if gen % EVAL_EVERY == 0:
+            surrogate.fit(np.array(X_train), y_train)
+
+        # NSGA-II selection: handles sorting + crowding distance
+        pop = toolbox.select(pop + offspring, MU)
+
+        # Track which individuals in the new population were real-evaluated
+        offspring_ids = [id(ind) for ind in offspring]
+        real_eval_ids = set(id(offspring[i]) for i in real_eval_indices)
+
+        real_eval_flags = [id(ind) in real_eval_ids for ind in pop]
+
+        log_generation(gen, pop, real_eval_flags)
+        logbook.record(gen=gen, evals=len(real_eval_indices),
+                    min=min(ind.fitness.values[0] for ind in pop),
+                    max=max(ind.fitness.values[0] for ind in pop))
+        print(logbook.stream)
+
+    return pop, logbook
 
 if __name__ == "__main__":
-    main()
+    pop, logbook = main()
