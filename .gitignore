@@ -6,4 +6,4 @@
 *.npz
 *.dae
 data/*
-logs/*
+logs/blender_paper_lego

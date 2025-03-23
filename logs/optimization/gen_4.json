@@ -1,0 +1,87 @@
+[
+  {
+    "gen": 4,
+    "index": 0,
+    "params": {
+      "learning_rate": 0.00643032530473305,
+      "num_hidden_layers": 1,
+      "neurons_per_layer": 152,
+      "batch_size": 481,
+      "learning_decay_steps": 762
+    },
+    "fitness": [
+      8.262975692749023,
+      7.626031160354614,
+      1156.8349609375
+    ],
+    "real_eval": false
+  },
+  {
+    "gen": 4,
+    "index": 1,
+    "params": {
+      "learning_rate": 0.006799324925486822,
+      "num_hidden_layers": 10,
+      "neurons_per_layer": 59,
+      "batch_size": 400,
+      "learning_decay_steps": 126
+    },
+    "fitness": [
+      10.06861400604248,
+      6.5212132930755615,
+      4292.16162109375
+    ],
+    "real_eval": false
+  },
+  {
+    "gen": 4,
+    "index": 2,
+    "params": {
+      "learning_rate": 0.008077610593144798,
+      "num_hidden_layers": 10,
+      "neurons_per_layer": 184,
+      "batch_size": 191,
+      "learning_decay_steps": 961
+    },
+    "fitness": [
+      8.595897483825684,
+      6.223501068174132,
+      3397.079296875
+    ],
+    "real_eval": false
+  },
+  {
+    "gen": 4,
+    "index": 3,
+    "params": {
+      "learning_rate": 0.006799324925486822,
+      "num_hidden_layers": 10,
+      "neurons_per_layer": 59,
+      "batch_size": 882,
+      "learning_decay_steps": 126
+    },
+    "fitness": [
+      10.017074584960938,
+      7.48778510093689,
+      3627.73046875
+    ],
+    "real_eval": false
+  },
+  {
+    "gen": 4,
+    "index": 4,
+    "params": {
+      "learning_rate": 0.008077610593144798,
+      "num_hidden_layers": 8,
+      "neurons_per_layer": 184,
+      "batch_size": 345,
+      "learning_decay_steps": 961
+    },
+    "fitness": [
+      9.674986839294434,
+      6.415886163711548,
+      4292.16162109375
+    ],
+    "real_eval": false
+  }
+]
