@@ -767,7 +767,7 @@ def train(hyperparams, config_file="configs/lego.txt"):
     if use_batching:
         rays_rgb = torch.Tensor(rays_rgb).to(device)
 
-    N_iters = 30
+    N_iters = 3000
     begin_line = 'Begin'
     # print(begin_line)
     

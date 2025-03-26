@@ -1,0 +1,176 @@
+<html>
+<head>
+<style>
+table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+th { background-color: #4CAF50; color: white; }
+tr:nth-child(even) { background-color: #f2f2f2; }
+tr:hover { background-color: #ddd; }
+caption { font-size: 1.5em; margin-bottom: 10px; }
+.pareto { background-color: #ffffcc; }
+.top-psnr { color: #4CAF50; font-weight: bold; }
+.top-time { color: #2196F3; font-weight: bold; }
+.top-memory { color: #f44336; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Top Individuals from Hyperparameter Optimization</h1>
+<table>
+<caption>Top Performing and Pareto-Optimal Individuals</caption>
+<tr>
+<th>gen</th>
+<th>fitness_psnr</th>
+<th>fitness_time</th>
+<th>fitness_memory</th>
+<th>learning_rate</th>
+<th>num_hidden_layers</th>
+<th>neurons_per_layer</th>
+<th>batch_size</th>
+<th>learning_decay_steps</th>
+</tr>
+<tr class="pareto">
+<td class="">10.000</td>
+<td class="top-psnr">25.778</td>
+<td class="">105.083</td>
+<td class="">6301.118</td>
+<td class="">0.0021</td>
+<td class="">3.000</td>
+<td class="">222.000</td>
+<td class="">215.000</td>
+<td class="">165.000</td>
+</tr>
+<tr class="">
+<td class="">17.000</td>
+<td class="top-psnr">24.625</td>
+<td class="">368.131</td>
+<td class="">6301.118</td>
+<td class="">0.0019</td>
+<td class="">1.000</td>
+<td class="">51.000</td>
+<td class="">1740.000</td>
+<td class="">153.000</td>
+</tr>
+<tr class="">
+<td class="">15.000</td>
+<td class="top-psnr">24.440</td>
+<td class="">369.671</td>
+<td class="">6301.118</td>
+<td class="">0.0019</td>
+<td class="">1.000</td>
+<td class="">51.000</td>
+<td class="">1740.000</td>
+<td class="">153.000</td>
+</tr>
+<tr class="pareto">
+<td class="">11.000</td>
+<td class="">24.088</td>
+<td class="">99.523</td>
+<td class="">6301.118</td>
+<td class="">0.0021</td>
+<td class="">2.000</td>
+<td class="">247.000</td>
+<td class="">268.000</td>
+<td class="">141.000</td>
+</tr>
+<tr class="pareto">
+<td class="">15.000</td>
+<td class="">23.742</td>
+<td class="">96.148</td>
+<td class="">6301.118</td>
+<td class="">0.0018</td>
+<td class="">3.000</td>
+<td class="">223.000</td>
+<td class="">215.000</td>
+<td class="">142.000</td>
+</tr>
+<tr class="pareto">
+<td class="">0.0000</td>
+<td class="">21.966</td>
+<td class="">149.110</td>
+<td class="top-memory">1156.835</td>
+<td class="">0.0064</td>
+<td class="">1.000</td>
+<td class="">152.000</td>
+<td class="">481.000</td>
+<td class="">762.000</td>
+</tr>
+<tr class="pareto">
+<td class="">19.000</td>
+<td class="">21.172</td>
+<td class="top-time">87.917</td>
+<td class="">6301.118</td>
+<td class="">0.0021</td>
+<td class="">3.000</td>
+<td class="">223.000</td>
+<td class="">215.000</td>
+<td class="">165.000</td>
+</tr>
+<tr class="pareto">
+<td class="">0.0000</td>
+<td class="">20.781</td>
+<td class="">117.807</td>
+<td class="">6052.211</td>
+<td class="">0.0023</td>
+<td class="">11.000</td>
+<td class="">268.000</td>
+<td class="">215.000</td>
+<td class="">142.000</td>
+</tr>
+<tr class="pareto">
+<td class="">25.000</td>
+<td class="">19.974</td>
+<td class="top-time">75.478</td>
+<td class="">6301.118</td>
+<td class="">0.0038</td>
+<td class="">11.000</td>
+<td class="">28.000</td>
+<td class="">129.000</td>
+<td class="">129.000</td>
+</tr>
+<tr class="pareto">
+<td class="">29.000</td>
+<td class="">15.904</td>
+<td class="top-time">70.323</td>
+<td class="">6301.118</td>
+<td class="">0.0042</td>
+<td class="">11.000</td>
+<td class="">28.000</td>
+<td class="">48.000</td>
+<td class="">129.000</td>
+</tr>
+<tr class="pareto">
+<td class="">0.0000</td>
+<td class="">10.768</td>
+<td class="">146.478</td>
+<td class="top-memory">3620.348</td>
+<td class="">0.0023</td>
+<td class="">6.000</td>
+<td class="">29.000</td>
+<td class="">432.000</td>
+<td class="">684.000</td>
+</tr>
+<tr class="pareto">
+<td class="">0.0000</td>
+<td class="">10.310</td>
+<td class="">146.008</td>
+<td class="">4292.162</td>
+<td class="">0.0081</td>
+<td class="">8.000</td>
+<td class="">184.000</td>
+<td class="">345.000</td>
+<td class="">961.000</td>
+</tr>
+<tr class="">
+<td class="">0.0000</td>
+<td class="">8.275</td>
+<td class="">244.267</td>
+<td class="top-memory">3623.137</td>
+<td class="">0.0068</td>
+<td class="">10.000</td>
+<td class="">59.000</td>
+<td class="">882.000</td>
+<td class="">126.000</td>
+</tr>
+</table>
+</body>
+</html>

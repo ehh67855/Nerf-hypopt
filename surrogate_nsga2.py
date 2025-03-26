@@ -172,7 +172,7 @@ def main(seed=42):
     random.seed(seed)
     np.random.seed(seed)
 
-    MU = 5  # population size
+    MU = 20  # population size
     NGEN = 40
     EVAL_EVERY = 5
     CXPB = 0.9
