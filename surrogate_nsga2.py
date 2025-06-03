@@ -131,7 +131,7 @@ toolbox.register("mutate", custom_mutate, indpb=1.0/NDIM)
 toolbox.register("select", tools.selNSGA2)
 
 # ========== Logging ==========
-log_dir = "logs/optimization"
+log_dir = "logs/optimization/10k_iters"
 os.makedirs(log_dir, exist_ok=True)
 
 def log_generation(gen, pop, is_real_eval):

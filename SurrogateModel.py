@@ -1,14 +1,10 @@
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel
-from sklearn.preprocessing import StandardScaler
+from sklearn.gaussian_process import GaussianProcessRegressor 
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel 
+from sklearn.preprocessing import StandardScaler 
 import numpy as np
 from run_nerf import evaluate_hyperparameters
 
-'''
-You’re modeling three different objectives: psnr, time, and memory. These metrics:
-
-Have different units and scales (e.g., dB, seconds, megabytes).
-May have different relationships to the input parameters.
+''' You’re modeling three different objectives: psnr, time, and memory. These metrics: Have different units and scales (e.g., dB, seconds, megabytes).  May have different relationships to the input parameters.
 May be correlated, but not necessarily in a way a single-output GP can capture.
 A standard GaussianProcessRegressor from sklearn models only one scalar output at a time, which means:
 
